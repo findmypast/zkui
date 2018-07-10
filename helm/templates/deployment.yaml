@@ -1,0 +1,96 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "service.name" . }}
+  labels:
+    app: {{ template "service.name" . }}
+    chart: {{ template "service.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    environment: {{ .Values.environment }}
+  annotations:
+    kubernetes.io/change-cause: https://github.com/findmypast/{{ template "service.name" . }}/releases/tag/{{ .Values.image.tag }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      app: {{ template "service.name" . }}
+      release: {{ .Release.Name }}
+      environment: {{ .Values.environment }}
+  strategy:
+    rollingUpdate:
+      maxSurge: {{ .Values.deployment.strategy.maxSurge }}
+      maxUnavailable: {{ .Values.deployment.strategy.maxUnavailable }}
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ template "service.name" . }}
+        release: {{ .Release.Name }}
+        environment: {{ .Values.environment }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            {{if .Values.secrets.environment}}
+            {{- range .Values.secrets.environment }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .secretName }}"
+                  key: {{ .key }}
+            {{ end }}
+            {{ end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{ if .Values.container.command }}
+          command: {{ .Values.container.command }}
+          {{ end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.container.port }}
+              protocol: TCP
+          envFrom:
+          - configMapRef:
+              name: {{ template "service.name" . }}
+          {{if .Values.volumes}}
+          volumeMounts:
+          {{- range .Values.volumes }}
+           - name: {{ .name }}
+             mountPath: {{ .mountPath }}
+          {{end}}
+          {{end}}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.container.livenessProbe }}
+              port: http
+            initialDelaySeconds: {{ .Values.container.livenessProbeDelaySecs }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.container.readinessProbe }}
+              port: http
+            initialDelaySeconds: {{ .Values.container.readinessProbeDelaySecs }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      {{if .Values.volumes}}
+      volumes:
+      {{- range .Values.volumes }}
+       - name: {{ .name }}
+         hostPath:
+           path: {{ .hostPath }}
+           type: {{ .type }}
+      {{end}}
+      {{end}}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
