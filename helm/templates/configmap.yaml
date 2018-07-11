@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ template "service.name" . }}
-data:
-  SERVICE_NODE: kubernetes
-  SERVICE_NAME: {{ template "service.name" . }}
-  SERVICE_TAGS: black-{{ .Values.environment }}
